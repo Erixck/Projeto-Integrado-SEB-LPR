@@ -25,6 +25,7 @@
 #include "st7735\st7735.h"
 #include "stdlib.h"
 #include "time.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +46,7 @@
 SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
+extern int senha_gerada;
 
 /* USER CODE END PV */
 
@@ -53,9 +55,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-void comecar_aula(estado_anterior_entrar);
-void gerar_senha_aleatoria(void);
-int verificar_senha(senha_gerada, senha_inserida);
+void comecar_aula(int estado_anterior_entrar);
+void gerar_senha_aleatoria(int senha_gerada);
+int verificar_senha(int senha_gerada, int senha_inserida);
+void exibir_senha_tela(int senha_gerada);
+void inserir_senha(int digito_atual, int estado_anterior_botao2, int senha_inserida, int estado_anterior_botao3, int posicao_digito);
+void atualizar_tela_inserir(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -79,6 +85,9 @@ int main(void)
 	int limite_maximo = 0;
 	int senha_inserida;
 	int senha_gerada;
+	int tentativa_senha = 0;
+	int digito_atual = 0;
+	int posicao_digito = 0;
 
   /* USER CODE END 1 */
 
@@ -110,7 +119,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  ST7735_Test();
+	  gerar_senha_aleatoria(senha_gerada);
+	  exibir_senha_tela(senha_gerada);
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -233,7 +245,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void comecar_aula(estado_anterior_entrar){
+void comecar_aula(int estado_anterior_entrar){
 	GPIO_PinState atual = HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin);
 
 	if (estado_anterior_entrar == GPIO_PIN_SET && atual == GPIO_PIN_RESET){
@@ -241,12 +253,60 @@ void comecar_aula(estado_anterior_entrar){
 	}
 
 	estado_anterior_entrar = atual;
-	gerar_senha_aleatoria();
+	gerar_senha_aleatoria(senha_gerada);
 }
 
-void gerar_senha_aleatoria(void){
-	int senha_gerada = (rand() % 9000) + 1000;
+void gerar_senha_aleatoria(senha_gerada){
+	senha_gerada = (rand() % 9000) + 1000;
 }
+
+void exibir_senha_tela(int senha_gerada){
+	ST7735_FillScreen(BLACK);
+	char buffer[20];
+	sprintf(buffer, "SENHA: %04d", senha_gerada);
+	ST7735_WriteString(10, 40, buffer, Font_11x18, YELLOW, BLACK);
+	HAL_Delay(1000);
+	ST7735_DrawLines();
+}
+
+void inserir_senha(estado_anterior_botao2, digito_atual, senha_inserida, estado_anterior_botao3, posicao_digito){
+	GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
+
+	if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
+		digito_atual++;
+
+		if (digito_atual > 9){
+			digito_atual = 0;
+		}
+	}
+
+		atualizar_tela_inserir();
+		HAL_Delay(50);
+
+		estado_anterior_botao2 = atual_b2;
+
+		GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
+
+		if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
+			if (posicao_digito == 0) senha_inserida += (digito_atual * 1000);
+			if (posicao_digito == 1) senha_inserida += (digito_atual * 100);
+			if (posicao_digito == 2) senha_inserida += (digito_atual * 10);
+			if (posicao_digito == 3){
+				senha_inserida += digito_atual;
+
+				verificar_senha(senha_inserida, senha_gerada);
+			}
+
+			posicao_digito++;
+			digito_atual = 0;
+
+			atualizar_tela_inserir();
+			HAL_Delay(50);
+		}
+}
+
+void atualizar_tela_inserir();
+
 
 
 /* USER CODE END 4 */
@@ -265,6 +325,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
+
 
 #ifdef  USE_FULL_ASSERT
 /**
