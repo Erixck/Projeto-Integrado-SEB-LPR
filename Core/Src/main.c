@@ -46,7 +46,19 @@
 SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
-extern int senha_gerada;
+GPIO_PinState estado_anterior_botao1 = GPIO_PIN_SET;
+GPIO_PinState estado_anterior_botao2 = GPIO_PIN_SET;
+GPIO_PinState estado_anterior_botao3 = GPIO_PIN_SET;
+GPIO_PinState estado_anterior_botao4 = GPIO_PIN_SET;
+
+int alunos_presentes = 0;
+int limite_maximo_alunos = 0;
+int config_finalizada = 0;
+int senha_inserida;
+int senha_gerada;
+int tentativa_senha = 0;
+int digito_atual = 0;
+int posicao_digito = 0;
 
 /* USER CODE END PV */
 
@@ -55,13 +67,15 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-void comecar_aula(int estado_anterior_entrar);
-void gerar_senha_aleatoria(int senha_gerada);
+void comecar_aula(void);
+void gerar_senha_aleatoria();
 int verificar_senha(int senha_gerada, int senha_inserida);
 void exibir_senha_tela(int senha_gerada);
-void inserir_senha(int digito_atual, int estado_anterior_botao2, int senha_inserida, int estado_anterior_botao3, int posicao_digito);
-void atualizar_tela_inserir(void);
-
+void inserir_senha(void);
+void atualizar_tela_inserir(int posicao_digito, int digito_atual, int senha_inserida);
+void gerenciar_configuracao(void);
+void atualizar_tela_configuracao(void);
+void atualizar_tela_principar(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -76,19 +90,6 @@ void atualizar_tela_inserir(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	GPIO_PinState estado_anterior_entrar = GPIO_PIN_SET;
-	GPIO_PinState estado_anterior_botao2 = GPIO_PIN_SET;
-	GPIO_PinState estado_anterior_botao3 = GPIO_PIN_SET;
-	GPIO_PinState estado_anterior_botao4 = GPIO_PIN_SET;
-
-	int alunos_presentes = 0;
-	int limite_maximo = 0;
-	int senha_inserida;
-	int senha_gerada;
-	int tentativa_senha = 0;
-	int digito_atual = 0;
-	int posicao_digito = 0;
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -111,7 +112,12 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  comecar_aula();
   ST7735_Init();
+  gerar_senha_aleatoria();
+  exibir_senha_tela(senha_gerada);
+  HAL_Delay(2000);
+  atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
 
   /* USER CODE END 2 */
 
@@ -119,8 +125,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  gerar_senha_aleatoria(senha_gerada);
-	  exibir_senha_tela(senha_gerada);
+	  inserir_senha();
+	  HAL_Delay(10);
 
 
     /* USER CODE END WHILE */
@@ -245,18 +251,18 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void comecar_aula(int estado_anterior_entrar){
-	GPIO_PinState atual = HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin);
+void comecar_aula(){
+	GPIO_PinState atual_btn1 = HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin);
 
-	if (estado_anterior_entrar == GPIO_PIN_SET && atual == GPIO_PIN_RESET){
-		ST7735_Test();
+	if (estado_anterior_botao1 == GPIO_PIN_SET && atual_btn1 == GPIO_PIN_RESET){
+		gerar_senha_aleatoria(senha_gerada);
+		inserir_senha();
 	}
 
-	estado_anterior_entrar = atual;
-	gerar_senha_aleatoria(senha_gerada);
+	estado_anterior_botao1 = atual_btn1;
 }
 
-void gerar_senha_aleatoria(senha_gerada){
+void gerar_senha_aleatoria(){
 	senha_gerada = (rand() % 9000) + 1000;
 }
 
@@ -265,11 +271,10 @@ void exibir_senha_tela(int senha_gerada){
 	char buffer[20];
 	sprintf(buffer, "SENHA: %04d", senha_gerada);
 	ST7735_WriteString(10, 40, buffer, Font_11x18, YELLOW, BLACK);
-	HAL_Delay(1000);
-	ST7735_DrawLines();
+	HAL_Delay(200);
 }
 
-void inserir_senha(estado_anterior_botao2, digito_atual, senha_inserida, estado_anterior_botao3, posicao_digito){
+void inserir_senha(void){
 	GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
 
 	if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
@@ -277,36 +282,103 @@ void inserir_senha(estado_anterior_botao2, digito_atual, senha_inserida, estado_
 
 		if (digito_atual > 9){
 			digito_atual = 0;
+			atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
 		}
 	}
 
-		atualizar_tela_inserir();
-		HAL_Delay(50);
+	estado_anterior_botao2 = atual_b2;
 
-		estado_anterior_botao2 = atual_b2;
+	GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
 
-		GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
+	if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
+		if (posicao_digito == 0) senha_inserida += (digito_atual * 1000);
+		if (posicao_digito == 1) senha_inserida += (digito_atual * 100);
+		if (posicao_digito == 2) senha_inserida += (digito_atual * 10);
+		if (posicao_digito == 3){
+			senha_inserida += digito_atual;
 
-		if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
-			if (posicao_digito == 0) senha_inserida += (digito_atual * 1000);
-			if (posicao_digito == 1) senha_inserida += (digito_atual * 100);
-			if (posicao_digito == 2) senha_inserida += (digito_atual * 10);
-			if (posicao_digito == 3){
-				senha_inserida += digito_atual;
-
-				verificar_senha(senha_inserida, senha_gerada);
-			}
-
-			posicao_digito++;
-			digito_atual = 0;
-
-			atualizar_tela_inserir();
-			HAL_Delay(50);
+			verificar_senha(senha_inserida, senha_gerada);
+			posicao_digito = -1;
+			senha_inserida = 0;
 		}
+
+		posicao_digito++;
+		digito_atual = 0;
+		atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
+	}
+	estado_anterior_botao3 = atual_b3;
 }
 
-void atualizar_tela_inserir();
 
+void atualizar_tela_inserir(int posicao_digito, int digito_atual, int senha_inserida){
+	char texto_formatado[20];
+
+	ST7735_FillScreen(BLACK);
+
+	ST7735_WriteString(10, 10, "DIGITE A SENHA", Font_7x10, WHITE, BLACK);
+
+	if (posicao_digito == 0)
+	        sprintf(texto_formatado, "> %d < _ _ _", digito_atual);
+	    else if (posicao_digito == 1)
+	        sprintf(texto_formatado, "%d > %d < _ _", (senha_inserida/1000), digito_atual);
+	    else if (posicao_digito == 2)
+	        sprintf(texto_formatado, "%d %d > %d < _", (senha_inserida/1000), (senha_inserida%1000)/100, digito_atual);
+	    else if (posicao_digito == 3)
+	        sprintf(texto_formatado, "%d %d %d > %d <", (senha_inserida/1000), (senha_inserida%1000)/100, (senha_inserida%100)/10, digito_atual);
+
+	ST7735_WriteString(10, 50, texto_formatado, Font_11x18, YELLOW, BLACK);
+	ST7735_WriteString(10, 100, "B1:+  B2:OK", Font_7x10, GREEN, BLACK);
+}
+
+int verificar_senha(int senha_gerada, int senha_inserida){
+	if (senha_gerada == senha_inserida){
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+void gerenciar_configuracao(void){
+	GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
+
+	if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
+		limite_maximo_alunos++;
+		if (limite_maximo_alunos > 40){
+			limite_maximo_alunos = 1;
+		}
+
+		atualizar_tela_configuracao();
+		HAL_Delay(50);
+	}
+
+	estado_anterior_botao2 = atual_b2;
+
+	GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
+	if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
+		config_finalizada = 1;
+
+		ST7735_FillScreen(BLACK);
+		ST7735_WriteString(10, 50, "TURMA CONFIGURADA!", Font_7x10, GREEN, BLACK);
+		HAL_Delay(1000);
+
+		atualizar_tela_principal();
+	}
+	estado_anterior_botao3 = atual_b3;
+}
+
+void atualizar_tela_configuracao(){
+	char buffer[20];
+
+	ST7735_FillScreen(BLACK);
+	ST7735_WriteString(5, 10, "CONFIG. DA TURMA", Font_7x10, WHITE, BLACK);
+	ST7735_WriteString(5, 40, "Qtd Max Alunos:", Font_7x10, WHITE, BLACK);
+
+	sprintf(buffer, "%02d", limite_maximo_alunos);
+
+	ST7735_WriteString(50, 70, buffer, Font_11x18, CYAN, BLACK);
+
+	ST7735_WriteString(5, 110, "B2 [+]  B3 [OK]", Font_7x10, YELLOW, BLACK);
+}
 
 
 /* USER CODE END 4 */
