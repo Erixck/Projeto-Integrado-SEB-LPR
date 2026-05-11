@@ -51,8 +51,13 @@ GPIO_PinState estado_anterior_botao2 = GPIO_PIN_SET;
 GPIO_PinState estado_anterior_botao3 = GPIO_PIN_SET;
 GPIO_PinState estado_anterior_botao4 = GPIO_PIN_SET;
 
+int aula_iniciada = 0;
 int sistema_autenticado = 0;
 int alunos_presentes = 0;
+int tentativas_erradas = 0;
+int sistema_bloqueado = 0;
+long tempo_bloqueio = 0;
+int matricula = 0;
 int limite_maximo_alunos = 10;
 int config_finalizada = 0;
 int senha_inserida = 0;
@@ -61,6 +66,7 @@ int digito_atual = 0;
 int posicao_digito = 0;
 int alunos_fora = 0;
 int total_entrada = 0;
+int total_saida = 0;
 
 /* USER CODE END PV */
 
@@ -69,6 +75,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
+void exibir_tela_inicial(void);
 void gerar_senha_aleatoria(void);
 int verificar_senha(int senha_gerada, int senha_inserida);
 void exibir_senha_tela(int senha_gerada);
@@ -117,7 +124,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
   ST7735_Init();
   srand(HAL_GetTick());
+  exibir_tela_inicial();
   gerar_senha_aleatoria();
+  while (aula_iniciada == 0) {
+      if (HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin) == GPIO_PIN_RESET) {
+          aula_iniciada = 1;
+          HAL_Delay(200);
+      }
+  }
   exibir_senha_tela(senha_gerada);
   HAL_Delay(2000);
   atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
@@ -129,23 +143,24 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (sistema_autenticado == 0) {
-		  inserir_senha();
-	  }
-	  else if (config_finalizada == 0) {
-		  gerenciar_configuracao();
-	  }
-	  else {
-		  gerenciar_aula();
+      if (sistema_autenticado == 0) {
+          inserir_senha();
+      }
 
-		  GPIO_PinState atual_b4 = HAL_GPIO_ReadPin(BOTAO4_GPIO_Port, BOTAO4_Pin);
-		  if (atual_b4 == GPIO_PIN_RESET && estado_anterior_botao4 == GPIO_PIN_SET) {
-			  exibir_relatorio_final();
-			  while(1);
-		  }
-		  estado_anterior_botao4 = atual_b4;
-	  }
-	  HAL_Delay(10);
+      if (sistema_autenticado == 1 && config_finalizada == 0) {
+          gerenciar_configuracao();
+      }
+
+      if (sistema_autenticado == 1 && config_finalizada == 1) {
+          gerenciar_aula();
+
+          if (HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin) == GPIO_PIN_RESET &&
+              HAL_GPIO_ReadPin(BOTAO4_GPIO_Port, BOTAO4_Pin) == GPIO_PIN_RESET) {
+
+              exibir_relatorio_final();
+              while(1);
+          }
+      }
 	      /* USER CODE END WHILE */
     /* USER CODE END WHILE */
 
@@ -270,6 +285,15 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void exibir_tela_inicial(void);
+
+void exibir_tela_inicial(void) {
+    ST7735_FillScreen(BLACK);
+    ST7735_WriteString(10, 40, "BEM-VINDO!", Font_11x18, WHITE, BLACK);
+    ST7735_WriteString(10, 70, "Pressione B1", Font_7x10, YELLOW, BLACK);
+    ST7735_WriteString(10, 85, "para iniciar", Font_7x10, YELLOW, BLACK);
+}
+
 void gerar_senha_aleatoria(){
 	senha_gerada = (rand() % 9000) + 1000;
 }
@@ -283,18 +307,26 @@ void exibir_senha_tela(int senha_gerada){
 }
 
 void inserir_senha(void){
+
+    if (sistema_bloqueado) {
+        if (HAL_GetTick() - tempo_bloqueio >= 10000) {
+            sistema_bloqueado = 0;
+            tentativas_erradas = 0;
+            atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
+        } else {
+            return;
+        }
+    }
+
     GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
     if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
-        digito_atual++;
-        if (digito_atual > 9) digito_atual = 0;
-
+        digito_atual = (digito_atual + 1) % 10;
         atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
     }
     estado_anterior_botao2 = atual_b2;
 
     GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
     if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
-
         if (posicao_digito == 0) senha_inserida += (digito_atual * 1000);
         else if (posicao_digito == 1) senha_inserida += (digito_atual * 100);
         else if (posicao_digito == 2) senha_inserida += (digito_atual * 10);
@@ -308,8 +340,17 @@ void inserir_senha(void){
                 ST7735_WriteString(10, 50, "ACESSO LIBERADO!", Font_7x10, GREEN, BLACK);
                 HAL_Delay(1500);
             } else {
+                tentativas_erradas++;
                 ST7735_FillScreen(BLACK);
-                ST7735_WriteString(10, 50, "SENHA ERRADA!", Font_7x10, RED, BLACK);
+
+                if (tentativas_erradas >= 3) {
+                    sistema_bloqueado = 1;
+                    tempo_bloqueio = HAL_GetTick();
+                    ST7735_WriteString(10, 50, "SISTEMA BLOQUEADO", Font_7x10, RED, BLACK);
+                    ST7735_WriteString(10, 70, "Aguarde 10s...", Font_7x10, RED, BLACK);
+                } else {
+                    ST7735_WriteString(10, 50, "SENHA ERRADA!", Font_7x10, RED, BLACK);
+                }
                 HAL_Delay(1500);
 
                 posicao_digito = -1;
@@ -320,7 +361,7 @@ void inserir_senha(void){
         posicao_digito++;
         digito_atual = 0;
 
-        if (sistema_autenticado == 0) {
+        if (sistema_autenticado == 0 && sistema_bloqueado == 0) {
             atualizar_tela_inserir(posicao_digito, digito_atual, senha_inserida);
         }
     }
@@ -398,84 +439,102 @@ void atualizar_tela_configuracao(){
 }
 
 void atualizar_tela_principal(void){
-	char buffer[32];
+    char buffer[32];
+    ST7735_FillScreen(BLACK);
 
-	ST7735_FillScreen(BLACK);
+    sprintf(buffer, "Alunos: %02d/%02d", alunos_presentes, limite_maximo_alunos);
+    ST7735_WriteString(5, 20, buffer, Font_11x18, WHITE, BLACK);
 
-	sprintf(buffer, "Alunos: %02d/%02d", alunos_presentes, limite_maximo_alunos);
-	ST7735_WriteString(5, 30, buffer, Font_11x18, WHITE, BLACK);
 
-	ST7735_FillRectangle(5, 55, 118, 15, WHITE);
+    ST7735_FillRectangle(5, 45, 118, 10, WHITE);
+    int largura_barra = (alunos_presentes * 114) / limite_maximo_alunos;
+    if (largura_barra > 0) {
+        ST7735_FillRectangle(7, 47, largura_barra, 6, BLUE);
+    }
 
-	int largura_barra = (alunos_presentes * 114) / limite_maximo_alunos;
 
-	if (largura_barra > 0) {
-		for(int i = 0; i < 11; i++) {
-			ST7735_DrawLine(7, 57 + i, 7 + largura_barra, 57 + i, WHITE);
-	        }
-	    }
+    sprintf(buffer, "No Banheiro: %d/3", alunos_fora);
+    ST7735_WriteString(5, 65, buffer, Font_7x10, WHITE, BLACK);
 
-	sprintf(buffer, "No banheiro: %d/3", alunos_fora);
-	ST7735_WriteString(5, 85, buffer, Font_7x10, WHITE, BLACK);
+    if (alunos_fora >= 3) {
+        ST7735_WriteString(5, 80, "STATUS: OCUPADO", Font_7x10, RED, BLACK);
+    } else {
+        ST7735_WriteString(5, 80, "STATUS: LIVRE  ", Font_7x10, GREEN, BLACK);
+    }
 
-	ST7735_WriteString(5, 115, "B1:+  B2:Out B3:In", Font_7x10, WHITE, BLACK);
+    ST7735_WriteString(5, 115, "B1:Leitor B2:Out B3:In", Font_7x10, WHITE, BLACK);
 }
-
 void gerenciar_aula(void) {
-	GPIO_PinState atual_b1 = HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin);
+    GPIO_PinState atual_b1 = HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin);
 
-	if (atual_b1 == GPIO_PIN_RESET && estado_anterior_botao1 == GPIO_PIN_SET){
-		if (alunos_presentes < limite_maximo_alunos){
-			alunos_presentes++;
-			total_entrada++;
-			atualizar_tela_principal();
-		}
-		HAL_Delay(50);
-	}
-	estado_anterior_botao1 = atual_b1;
+    if (atual_b1 == GPIO_PIN_RESET && estado_anterior_botao1 == GPIO_PIN_SET){
+        if (matricula == 0) {
+            ST7735_WriteString(5, 100, "ERRO: Sem Digital ", Font_7x10, RED, WHITE);
+            HAL_Delay(1000);
+            atualizar_tela_principal();
+        }
+        else if (alunos_presentes >= limite_maximo_alunos){
+            ST7735_WriteString(5, 100, "ERRO: Sala Cheia  ", Font_7x10, RED, WHITE);
+            HAL_Delay(1000);
+            atualizar_tela_principal();
+        }
+        else {
+            alunos_presentes++;
+            total_entrada++;
+            matricula = 0;
+            atualizar_tela_principal();
+        }
+        HAL_Delay(50);
+    }
+    estado_anterior_botao1 = atual_b1;
 
-	GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
 
-	if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
-		if (alunos_presentes > 0 && alunos_fora < 3) {
-			alunos_presentes--;
-		    alunos_fora++;
-		    atualizar_tela_principal();
-		}
-		HAL_Delay(50);
-	}
-	estado_anterior_botao2 = atual_b2;
+    GPIO_PinState atual_b2 = HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin);
+    if (atual_b2 == GPIO_PIN_RESET && estado_anterior_botao2 == GPIO_PIN_SET){
+        if (alunos_fora >= 3) {
+            ST7735_WriteString(5, 100, "ERRO: Limite Banho", Font_7x10, RED, WHITE);
+            HAL_Delay(1000);
+            atualizar_tela_principal();
+        }
+        else if (alunos_presentes > 0) {
+            alunos_presentes--;
+            alunos_fora++;
+            total_saida++;
+            atualizar_tela_principal();
+        }
+        HAL_Delay(50);
+    }
+    estado_anterior_botao2 = atual_b2;
 
-	GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
-
-	if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
-		if (alunos_fora > 0){
-			alunos_fora--;
-			alunos_presentes++;
-			atualizar_tela_principal();
-		}
-		HAL_Delay(50);
-	}
-	estado_anterior_botao3 = atual_b3;
+    GPIO_PinState atual_b3 = HAL_GPIO_ReadPin(BOTAO3_GPIO_Port, BOTAO3_Pin);
+    if (atual_b3 == GPIO_PIN_RESET && estado_anterior_botao3 == GPIO_PIN_SET){
+        if (alunos_fora > 0){
+            alunos_fora--;
+            alunos_presentes++;
+            atualizar_tela_principal();
+        }
+        HAL_Delay(50);
+    }
+    estado_anterior_botao3 = atual_b3;
 }
 
 void exibir_relatorio_final(void){
-	char buffer[32];
+    char buffer[32];
 
-	ST7735_FillScreen(BLACK);
-	ST7735_WriteString(5, 10, "AULA ENCERRADA", Font_7x10, WHITE, BLACK);
-	ST7735_DrawLine(0, 25, 128, 25, WHITE);
+    ST7735_FillScreen(BLACK);
+    ST7735_WriteString(5, 10, "AULA ENCERRADA", Font_7x10, WHITE, BLACK);
+    ST7735_DrawLine(0, 25, 128, 25, WHITE);
 
-	sprintf(buffer, "Total Alunos: %d", total_entrada);
-	ST7735_WriteString(5, 45, buffer, Font_11x18, WHITE, BLACK);
+    sprintf(buffer, "Total Alunos: %d", total_entrada);
+    ST7735_WriteString(5, 45, buffer, Font_7x10, WHITE, BLACK);
 
-	sprintf(buffer, "Presentes: %d", alunos_presentes);
-	ST7735_WriteString(5, 75, buffer, Font_7x10, WHITE, BLACK);
+    sprintf(buffer, "Qtd Saidas: %d", total_saida);
+    ST7735_WriteString(5, 65, buffer, Font_7x10, WHITE, BLACK);
 
-	sprintf(buffer, "Nao voltaram: %d", alunos_fora);
-	ST7735_WriteString(5, 95, buffer, Font_7x10, WHITE, BLACK);
+    sprintf(buffer, "Nao voltaram: %d", alunos_fora);
+    ST7735_WriteString(5, 85, buffer, Font_7x10, WHITE, BLACK);
 
-	ST7735_WriteString(5, 115, "Reinicie o sistema", Font_7x10, WHITE, BLACK);
+    ST7735_WriteString(5, 115, "Reinicie o sistema", Font_7x10, YELLOW, BLACK);
 }
 
 /* USER CODE END 4 */
