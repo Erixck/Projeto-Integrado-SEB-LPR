@@ -1,5 +1,5 @@
 ### Alunos:
-Erick Guilherme de Carlos Rosa
+Erick Guilherme de Carlos Rosa ; 
 Gustavo Vilas Boas Batista
 
 ### Detalhamento das Fases:
