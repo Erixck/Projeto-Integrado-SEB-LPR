@@ -49,3 +49,5 @@ Para finalizar a aula e ver as estatísticas:
 * **Resultado:** O sistema trava e exibe o **Relatório Final** com:
     * Total de presenças registradas.
     * Total de saídas para o banheiro.
+
+Link vídeo explicativo: https://www.youtube.com/watch?v=VTWxst2lT08
