@@ -1,3 +1,7 @@
+### Alunos:
+Erick Guilherme de Carlos Rosa
+Gustavo Vilas Boas Batista
+
 ### Detalhamento das Fases:
 1.  **Fase 0 (Aguardando Inicialização):** O sistema permanece em espera ativa. Ao pressionar PA9 o HAL_GetTick() é capturado como semente de entropia para a função srand(), gerando uma senha aleatória única de 4 dígitos entre 1000 e 9999.
 2.  **Fase 1 (Validação de Senha):** O display exibe os caracteres sob edição, a quantidade de dígitos inseridos e a senha correta (solicitação específica de projeto). Caso o usuário erre a credencial por 3 vezes consecutivas, o sistema entra em estado de proteção por 10 segundos, utilizando temporização.
