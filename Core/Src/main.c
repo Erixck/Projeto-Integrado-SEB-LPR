@@ -132,7 +132,7 @@ int main(void)
       {
 	        if (aula_iniciada == 0) {
 	          ST7735_WriteString(5, 20, "SISTEMA PRONTO", Font_7x10, CYAN, BLACK);
-	          ST7735_WriteString(5, 50, "Pressione B1 para", Font_7x10, WHITE, BLACK);
+	          ST7735_WriteString(5, 50, "Pressione PA9 para", Font_7x10, WHITE, BLACK);
 	          ST7735_WriteString(5, 70, "INICIAR A AULA", Font_7x10, YELLOW, BLACK);
 
 	          if (HAL_GPIO_ReadPin(BOTAO1_GPIO_Port, BOTAO1_Pin) == GPIO_PIN_RESET) {
@@ -308,13 +308,13 @@ void atualizar_tela_inserir(int pos, int dig) {
         }
     }
 
-    ST7735_WriteString(5, 120, "B1:+  B2:CONFIRMA", Font_7x10, WHITE, BLACK);
+    ST7735_WriteString(5, 120, "PA9:+  PA10:CONFIRMA", Font_7x10, WHITE, BLACK);
 }
 
 void exibir_tela_inicial(void) {
     ST7735_FillScreen(BLACK);
     ST7735_WriteString(10, 40, "BEM-VINDO!", Font_11x18, WHITE, BLACK);
-    ST7735_WriteString(10, 70, "Pressione B1", Font_7x10, YELLOW, BLACK);
+    ST7735_WriteString(10, 70, "Pressione PA9", Font_7x10, YELLOW, BLACK);
     ST7735_WriteString(10, 85, "para iniciar", Font_7x10, YELLOW, BLACK);
 }
 
@@ -382,7 +382,7 @@ void inserir_senha(void) {
 
 void gerenciar_configuracao(void) {
     ST7735_WriteString(5, 10, "CONFIG. LIMITE", Font_7x10, WHITE, BLACK);
-    ST7735_WriteString(5, 90, "B2: + | B3: CONFIRMA", Font_7x10, YELLOW, BLACK);
+    ST7735_WriteString(5, 90, "PA10: + | PA11: CONFIRMA", Font_7x10, YELLOW, BLACK);
 
     if (HAL_GPIO_ReadPin(BOTAO2_GPIO_Port, BOTAO2_Pin) == GPIO_PIN_RESET) {
         limite_alunos++;
